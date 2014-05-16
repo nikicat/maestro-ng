@@ -11,7 +11,7 @@ import sys
 import os
 import yaml
 
-from . import exceptions, maestro
+from . import exceptions, maestro, plays
 
 # Define the commands
 ACCEPTED_COMMANDS = ['status', 'fullstatus', 'start', 'stop', 'clean', 'logs']
@@ -58,6 +58,15 @@ def create_parser():
     parser.add_argument('-o', '--only', action='store_const',
                         const=True, default=False,
                         help='only affect the selected container or service')
+    parser.add_argument('--columns', default='order,instance,service,ship,' +
+                        'container,status,prefix,port,name',
+                        help='columns to output')
+    parser.add_argument('--no-style', action='store_const',
+                        const=True, default=False,
+                        help='turn off color')
+    parser.add_argument('--no-header', action='store_const',
+                        const=True, default=False,
+                        help='turn off header')
 
     return parser
 
@@ -90,6 +99,14 @@ def main(args=None):
 
     try:
         options.things = set(options.things)
+
+        def make_output_formatter(fields):
+            fields = [field for field in fields
+                      if field[0] in options.columns.split(',')]
+            return plays.OutputFormatter(fields, styled=not options.no_style,
+                                         header=not options.no_header)
+
+        options.formatter = make_output_formatter
         getattr(c, options.command)(**vars(options))
     except exceptions.MaestroException as e:
         sys.stderr.write('{}\n'.format(e))

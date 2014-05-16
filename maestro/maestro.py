@@ -168,7 +168,7 @@ class Conductor:
                                              forward)),
             forward=forward)
 
-    def status(self, things=[], only=False, **kwargs):
+    def status(self, formatter, things=[], only=False, **kwargs):
         """Display the status of the given services and containers, but only
         looking at the container's state, not the application availability.
 
@@ -179,9 +179,9 @@ class Conductor:
         """
         containers = self._ordered_containers(things) \
             if not only else self._to_containers(things)
-        plays.Status(containers).run()
+        plays.Status(containers).run(formatter)
 
-    def fullstatus(self, things=[], only=False, **kwargs):
+    def fullstatus(self, formatter, things=[], only=False, **kwargs):
         """Display the status of the given services and containers, pinging for
         application availability (slower).
 
@@ -192,9 +192,10 @@ class Conductor:
         """
         containers = self._ordered_containers(things) \
             if not only else self._to_containers(things)
-        plays.FullStatus(containers).run()
+        plays.FullStatus(containers).run(formatter)
 
-    def start(self, things=[], refresh_images=False, only=False, **kwargs):
+    def start(self, formatter, things=[], refresh_images=False,
+              only=False, **kwargs):
         """Start the given container(s) and services(s). Dependencies of the
         requested containers and services are started first.
 
@@ -207,9 +208,10 @@ class Conductor:
         """
         containers = self._ordered_containers(things) \
             if not only else self._to_containers(things)
-        plays.Start(containers, self._registries, refresh_images).run()
+        plays.Start(containers, self._registries, refresh_images) \
+            .run(formatter)
 
-    def stop(self, things=[], only=False, **kwargs):
+    def stop(self, formatter, things=[], only=False, **kwargs):
         """Stop the given container(s) and service(s).
 
         This one is a bit more tricky because we don't want to look at the
@@ -224,12 +226,12 @@ class Conductor:
         """
         containers = self._ordered_containers(things, False) \
             if not only else self._to_containers(things)
-        plays.Stop(containers).run()
+        plays.Stop(containers).run(formatter)
 
     def clean(self, **kwargs):
         raise NotImplementedError('Not yet implemented!')
 
-    def logs(self, things=[], **kwargs):
+    def logs(self, formatter, things=[], **kwargs):
         """Display the logs of the given container."""
         containers = self._to_containers(things)
         if len(containers) != 1:
@@ -238,8 +240,8 @@ class Conductor:
 
         container = containers[0]
 
-        o = plays.OutputFormatter()
-        o.pending('Inspecting container status...')
+        o = formatter([plays.STATUS_FIELD])
+        o.update(status='Inspecting container status...')
         status = container.status()
         if not status:
             return
@@ -247,18 +249,17 @@ class Conductor:
         try:
             stream = status['State']['Running'] and kwargs.get('follow')
             if stream:
-                o.pending(
-                    'Now streaming logs for {}. New output will appear below.'
-                    .format(container.name))
+                o.update(status='Now streaming logs for {}. ' +
+                         'New output will appear below.'
+                         .format(container.name))
                 logs = container.ship.backend.attach(container.id, stream=True)
             else:
-                o.pending(
-                    'Requesting logs for {}. This may take a while...'
-                    .format(container.name))
+                o.update(status='Requesting logs for {}. ' +
+                         'This may take a while...'
+                         .format(container.name))
                 logs = container.ship.backend.logs(container.id).split('\n')
                 logs = logs[-int(kwargs.get('n', len(logs))):]
 
-            o.pending('\033[2K')
             for line in logs:
                 print(line.rstrip())
         except:
