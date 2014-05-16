@@ -14,7 +14,8 @@ import yaml
 from . import exceptions, maestro, plays
 
 # Define the commands
-ACCEPTED_COMMANDS = ['status', 'fullstatus', 'start', 'stop', 'clean', 'logs']
+ACCEPTED_COMMANDS = ['status', 'fullstatus', 'start', 'stop',
+                     'clean', 'logs', 'cmdline']
 
 
 def load_config(options):
@@ -59,7 +60,7 @@ def create_parser():
                         const=True, default=False,
                         help='only affect the selected container or service')
     parser.add_argument('--columns', default='order,instance,service,ship,' +
-                        'container,status,prefix,port,name',
+                        'container,status,cmdline,prefix,port,name',
                         help='columns to output')
     parser.add_argument('--no-style', action='store_const',
                         const=True, default=False,

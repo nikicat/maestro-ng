@@ -45,6 +45,8 @@ DEFAULT_FIELDS = [('order', '  #', '{:>3s}  ', '{:>3d}. '),
 
 STATUS_FIELD = ('status', 'STATUS', '{:<20s}', '{:<20s}')
 
+CMDLINE_FIELD = ('cmdline', 'CMDLINE', '{}', '{}')
+
 escapes = {'yellow': '\033[;1m',
            'reset': '\033[;0m',
            'clear_eol': '\033[K',
@@ -407,3 +409,57 @@ class Stop(BaseOrchestrationPlay):
                 o.update(status_color=color(False), status='fail!')
 
             o.end()
+
+
+class Cmdline(BaseOrchestrationPlay):
+    """A Meastro orchestration play that just outputs docker
+    command lines in CSV format"""
+
+    def run(self, formatter):
+        o = formatter(DEFAULT_FIELDS + [CMDLINE_FIELD])
+        o.header()
+
+        for order, container in enumerate(self._containers):
+            o.update(order=order,
+                     instance=container.name,
+                     service=container.service.name,
+                     ship=container.ship.name)
+
+            cmdline = self._cmdline_for_container(o, container)
+            o.update(cmdline=cmdline)
+            o.end()
+
+    def _cmdline_for_container(self, o, container):
+        environment = ' '.join(['-e "{name}={value}"'.format(name=name,
+                                                             value=value)
+                               for name, value in container.env.items()])
+        volumes = ' '.join(['-v {host}:{container}'.format(host=key,
+                                                           container=value)
+                           for key, value in container.volumes.items()])
+        ports = ' '.join(['-p {ip}:{hostport}:{containerport}'.format(
+            ip=info['external'][0],
+            hostport=info['external'][1].split('/')[0],
+            containerport=info['exposed'].split('/')[0])
+            for name, info in container.ports.items()])
+        if container.mem_limit:
+            mem_limit = '-m {}'.format(container.mem_limit)
+        else:
+            mem_limit = ''
+        if container.cpu_shares:
+            cpu_shares = '-c {}'.format(container.cpu_shares)
+        else:
+            cpu_shares = ''
+        cmdline = '-H {docker_endpoint} run -h {name} --name {name} ' + \
+            '{environment} {volumes} {mem_limit} {cpu_shares} ' + \
+            '{ports} --privileged={privileged} {image} {command}'.format(
+                image=container.service.image,
+                docker_endpoint=container.ship.docker_endpoint,
+                name=container.name,
+                environment=environment,
+                volumes=volumes,
+                mem_limit=mem_limit,
+                cpu_shares=cpu_shares,
+                ports=ports,
+                command=container.cmd or '',
+                privileged=container.privileged)
+        return cmdline

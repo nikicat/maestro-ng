@@ -264,3 +264,9 @@ class Conductor:
                 print(line.rstrip())
         except:
             pass
+
+    def cmdline(self, formatter, things=[], only=False, **kwargs):
+        """Output docker cmdlines for containers"""
+        containers = self._ordered_containers(things) \
+            if not only else self._to_container(things)
+        plays.Cmdline(containers).run(formatter)
